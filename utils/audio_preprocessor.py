@@ -21,29 +21,42 @@ os.makedirs(CHUNK_DIR, exist_ok=True)
 
 def download_youtube_audio(url: str) -> str:
 
+    output_template = os.path.join(
+        DOWNLOAD_DIR,
+        "%(title)s.%(ext)s"
+    )
+
     ydl_opts = {
-        "format": "bestaudio/best",
+        # Prefer audio-only formats
+        "format": "bestaudio[ext=m4a]/bestaudio/best",
 
-        "outtmpl": os.path.join(
-            DOWNLOAD_DIR,
-            "%(title)s.%(ext)s"
-        ),
-
-        "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "wav",
-            }
-        ],
-
-        "postprocessor_args": [
-            "-ar", "16000",
-            "-ac", "1"
-        ],
+        "outtmpl": output_template,
 
         "noplaylist": True,
+
         "quiet": False,
+
+        "no_warnings": False,
+
+        # Retry settings
+        "retries": 3,
+        "fragment_retries": 3,
+
+        # Network timeout
+        "socket_timeout": 30,
+
+        # Browser-like headers
+        "http_headers": {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 "
+                "(KHTML, like Gecko) "
+                "Chrome/131.0.0.0 Safari/537.36"
+            ),
+        },
     }
+
+    print("Starting YouTube download...")
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
 
@@ -52,14 +65,36 @@ def download_youtube_audio(url: str) -> str:
             download=True
         )
 
-        audio_file = (
-            os.path.splitext(
-                ydl.prepare_filename(info)
-            )[0]
-            + ".wav"
-        )
+        downloaded_file = ydl.prepare_filename(info)
 
-    return audio_file
+    print("Downloaded:", downloaded_file)
+
+    # -----------------------------------------------------
+    # Convert downloaded file to WAV
+    # -----------------------------------------------------
+
+    wav_file = os.path.splitext(downloaded_file)[0] + ".wav"
+
+    command = [
+        "ffmpeg",
+        "-i",
+        downloaded_file,
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        "-y",
+        wav_file
+    ]
+
+    subprocess.run(
+        command,
+        check=True
+    )
+
+    print("WAV created:", wav_file)
+
+    return wav_file
 
 
 # =========================================================
@@ -82,9 +117,9 @@ def convert_to_wav(input_file: str) -> str:
         "-ac",
         "1",
 
-        wav_path,
+        "-y",
 
-        "-y"
+        wav_path
     ]
 
     subprocess.run(
@@ -99,20 +134,50 @@ def convert_to_wav(input_file: str) -> str:
 # 3. CHUNK AUDIO
 # =========================================================
 
-def chunk_audio(wav_path: str, chunk_minutes: int = 10) -> list:
+def chunk_audio(
+    wav_path: str,
+    chunk_minutes: int = 10
+) -> list:
 
-    # Create chunks folder if it doesn't exist
-    os.makedirs("chunks", exist_ok=True)
+    os.makedirs(CHUNK_DIR, exist_ok=True)
+
+    # Remove old chunks
+    old_chunks = glob.glob(
+        os.path.join(CHUNK_DIR, "chunk_*.wav")
+    )
+
+    for old_chunk in old_chunks:
+        try:
+            os.remove(old_chunk)
+        except OSError:
+            pass
+
+    output_pattern = os.path.join(
+        CHUNK_DIR,
+        "chunk_%03d.wav"
+    )
 
     command = [
         "ffmpeg",
-        "-i", wav_path,
-        "-f", "segment",
-        "-segment_time", str(chunk_minutes * 60),
-        "-ar", "16000",
-        "-ac", "1",
-        "chunks/chunk_%03d.wav",
-        "-y"
+
+        "-i",
+        wav_path,
+
+        "-f",
+        "segment",
+
+        "-segment_time",
+        str(chunk_minutes * 60),
+
+        "-ar",
+        "16000",
+
+        "-ac",
+        "1",
+
+        "-y",
+
+        output_pattern
     ]
 
     subprocess.run(
@@ -121,8 +186,15 @@ def chunk_audio(wav_path: str, chunk_minutes: int = 10) -> list:
     )
 
     chunks = sorted(
-        glob.glob("chunks/chunk_*.wav")
+        glob.glob(
+            os.path.join(
+                CHUNK_DIR,
+                "chunk_*.wav"
+            )
+        )
     )
+
+    print(f"Created {len(chunks)} audio chunks.")
 
     return chunks
 
@@ -133,20 +205,22 @@ def chunk_audio(wav_path: str, chunk_minutes: int = 10) -> list:
 
 def process_input(source: str) -> list:
 
-    # -----------------------------------------
-    # YouTube URL
-    # -----------------------------------------
+    # =====================================================
+    # YOUTUBE URL
+    # =====================================================
 
-    if source.startswith(("http://", "https://")):
+    if source.startswith(
+        ("http://", "https://")
+    ):
 
         print("Detected YouTube URL.")
         print("Downloading audio...")
 
         wav_path = download_youtube_audio(source)
 
-    # -----------------------------------------
-    # Local file
-    # -----------------------------------------
+    # =====================================================
+    # LOCAL FILE
+    # =====================================================
 
     else:
 
@@ -165,16 +239,16 @@ def process_input(source: str) -> list:
 
             wav_path = source
 
-        # MP3 / MP4 / other format
+        # Other format
         else:
 
             print("Converting local file to WAV...")
 
             wav_path = convert_to_wav(source)
 
-    # -----------------------------------------
-    # Chunk the WAV
-    # -----------------------------------------
+    # =====================================================
+    # CHUNK WAV
+    # =====================================================
 
     print("WAV Path:", wav_path)
 
@@ -184,20 +258,3 @@ def process_input(source: str) -> list:
     )
 
     return chunks
-
-
-# # =========================================================
-# # TESTING
-# # =========================================================
-
-# if __name__ == "__main__":
-
-#     source = "https://youtu.be/x63HCoDfAhQ"
-
-#     chunks = process_input(source)
-
-#     print("\nChunks created:")
-
-#     for chunk in chunks:
-
-#         print(chunk)
