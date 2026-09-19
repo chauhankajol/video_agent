@@ -1,5 +1,5 @@
 import os
-import whisper
+from faster_whisper import WhisperModel
 
 
 # =========================================================
@@ -12,21 +12,22 @@ _model = None
 
 
 # =========================================================
-# LOAD WHISPER MODEL
+# LOAD FASTER-WHISPER MODEL
 # =========================================================
 
 def load_model():
     global _model
 
     if _model is None:
-        print(f"Loading Whisper model: {WHISPER_MODEL}...")
+        print(f"Loading Faster-Whisper model: {WHISPER_MODEL}...")
 
-        _model = whisper.load_model(
+        _model = WhisperModel(
             WHISPER_MODEL,
-            device="cpu"
+            device="cpu",
+            compute_type="int8"
         )
 
-        print("Whisper model loaded successfully.")
+        print("Faster-Whisper model loaded successfully.")
 
     return _model
 
@@ -43,15 +44,19 @@ def transcribe_chunk(chunk_path: str, translate: bool = False) -> str:
 
     print(f"Processing: {chunk_path}")
 
-    result = model.transcribe(
+    segments, info = model.transcribe(
         chunk_path,
-        task=task,
-        fp16=False
+        task=task
     )
 
-    text = result.get("text", "").strip()
+    # Faster-Whisper returns segments as an iterator
+    text = " ".join(
+        segment.text.strip()
+        for segment in segments
+        if segment.text.strip()
+    )
 
-    return text
+    return text.strip()
 
 
 # =========================================================
