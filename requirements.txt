@@ -4,7 +4,7 @@ streamlit-extras>=0.4.0
 watchdog>=4.0.0
 
 # ---- Media Processing & Local Audio ----
-yt-dlp>=2024.8.6
+yt-dlp>=2026.1.0
 faster-whisper
 
 # ---- Translation & Utilities ----
