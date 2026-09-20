@@ -151,3 +151,78 @@ def download_youtube_audio(url: str) -> str:
     print(f"Final WAV created: {wav_file}")
 
     return str(wav_file)
+#=========================================================
+# 4. PROCESS INPUT
+# =========================================================
+
+def process_input(source: str) -> list:
+
+    # -----------------------------------------
+    # YouTube URL
+    # -----------------------------------------
+
+    if source.startswith(("http://", "https://")):
+
+        print("Detected YouTube URL.")
+        print("Downloading audio...")
+
+        wav_path = download_youtube_audio(source)
+
+    # -----------------------------------------
+    # Local file
+    # -----------------------------------------
+
+    else:
+
+        print("Detected local file.")
+
+        if not os.path.exists(source):
+
+            raise FileNotFoundError(
+                f"File not found: {source}"
+            )
+
+        # Already WAV
+        if source.lower().endswith(".wav"):
+
+            print("File is already WAV.")
+
+            wav_path = source
+
+        # MP3 / MP4 / other format
+        else:
+
+            print("Converting local file to WAV...")
+
+            wav_path = convert_to_wav(source)
+
+    # -----------------------------------------
+    # Chunk the WAV
+    # -----------------------------------------
+
+    print("WAV Path:", wav_path)
+
+    chunks = chunk_audio(
+        wav_path,
+        chunk_minutes=10
+    )
+
+    return chunks
+
+
+# # =========================================================
+# # TESTING
+# # =========================================================
+
+# if __name__ == "__main__":
+
+#     source = "https://youtu.be/x63HCoDfAhQ"
+
+#     chunks = process_input(source)
+
+#     print("\nChunks created:")
+
+#     for chunk in chunks:
+
+#         print(chunk)
+
