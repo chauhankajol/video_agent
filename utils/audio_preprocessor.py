@@ -1,3 +1,4 @@
+
 import os
 import glob
 import subprocess
@@ -13,25 +14,28 @@ os.makedirs(CHUNK_DIR, exist_ok=True)
 def download_youtube_audio(url: str) -> str:
     """
     Downloads audio from YouTube and converts it to 16kHz mono WAV.
-    Includes player_client fallbacks and IPv4 forcing to prevent HTTP 403 blocks.
+    Bypasses Streamlit Cloud / Datacenter 403 Forbidden blocks.
     """
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     output_template = os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s")
 
     ydl_opts = {
-        "format": "ba/ba*/bestaudio/best",
+        "format": "bestaudio[ext=m4a]/bestaudio/best",
         "outtmpl": output_template,
         "noplaylist": True,
         "retries": 10,
         "fragment_retries": 10,
         "socket_timeout": 30,
         "force_ipv4": True,
-        # Player clients configured to bypass cloud/datacenter 403 Forbidden blocks
+        # Updated extractor options for Cloud/Datacenter deployments
         "extractor_args": {
             "youtube": {
-                "player_client": ["web_creator", "tv", "android_vr"],
+                "player_client": ["mweb", "web"],
+                "player_skip": ["configs", "webpage"],
             }
         },
+        # Pass cookies if available (Place cookies.txt in your root folder)
+        "cookiefile": "cookies.txt" if os.path.exists("cookies.txt") else None,
         "postprocessors": [
             {
                 "key": "FFmpegExtractAudio",
@@ -55,7 +59,6 @@ def download_youtube_audio(url: str) -> str:
 
     print("WAV created:", wav_file)
     return wav_file
-
 
 def convert_to_wav(input_file: str) -> str:
     """
