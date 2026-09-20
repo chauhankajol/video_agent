@@ -1,12 +1,7 @@
-import yt_dlp
 import os
-import subprocess
 import glob
-
-
-# =========================================================
-# FOLDERS
-# =========================================================
+import subprocess
+import yt_dlp
 
 DOWNLOAD_DIR = "downloads"
 CHUNK_DIR = "chunks"
@@ -15,246 +10,109 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 os.makedirs(CHUNK_DIR, exist_ok=True)
 
 
-# =========================================================
-# 1. DOWNLOAD YOUTUBE AUDIO
-# =========================================================
-
 def download_youtube_audio(url: str) -> str:
-
-    output_template = os.path.join(
-        DOWNLOAD_DIR,
-        "%(title)s.%(ext)s"
-    )
+    """
+    Downloads audio from YouTube and directly converts it to 16kHz mono WAV.
+    """
+    output_template = os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s")
 
     ydl_opts = {
-        # Prefer audio-only formats
-        "format": "bestaudio[ext=m4a]/bestaudio/best",
-
+        "format": "bestaudio/best",
         "outtmpl": output_template,
-
         "noplaylist": True,
-
-        "quiet": False,
-
-        "no_warnings": False,
-
-        # Retry settings
         "retries": 3,
-        "fragment_retries": 3,
-
-        # Network timeout
         "socket_timeout": 30,
-
-        # Browser-like headers
         "http_headers": {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 "
-                "(KHTML, like Gecko) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/131.0.0.0 Safari/537.36"
             ),
         },
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "wav",
+            }
+        ],
+        "postprocessor_args": [
+            "-ar", "16000",
+            "-ac", "1"
+        ],
     }
 
-    print("Starting YouTube download...")
-
+    print("Starting YouTube download and audio extraction...")
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-
-        info = ydl.extract_info(
-            url,
-            download=True
-        )
-
-        downloaded_file = ydl.prepare_filename(info)
-
-    print("Downloaded:", downloaded_file)
-
-    # -----------------------------------------------------
-    # Convert downloaded file to WAV
-    # -----------------------------------------------------
-
-    wav_file = os.path.splitext(downloaded_file)[0] + ".wav"
-
-    command = [
-        "ffmpeg",
-        "-i",
-        downloaded_file,
-        "-ar",
-        "16000",
-        "-ac",
-        "1",
-        "-y",
-        wav_file
-    ]
-
-    subprocess.run(
-        command,
-        check=True
-    )
+        info = ydl.extract_info(url, download=True)
+        filename = ydl.prepare_filename(info)
+        wav_file = os.path.splitext(filename)[0] + ".wav"
 
     print("WAV created:", wav_file)
-
     return wav_file
 
 
-# =========================================================
-# 2. CONVERT LOCAL FILE TO WAV
-# =========================================================
-
 def convert_to_wav(input_file: str) -> str:
-
-    wav_path = os.path.splitext(input_file)[0] + ".wav"
+    """
+    Converts a local audio/video file to 16kHz mono WAV.
+    """
+    wav_path = os.path.splitext(input_file)[0] + "_16k.wav"
 
     command = [
         "ffmpeg",
-
-        "-i",
-        input_file,
-
-        "-ar",
-        "16000",
-
-        "-ac",
-        "1",
-
-        "-y",
-
-        wav_path
+        "-i", input_file,
+        "-ar", "16000",
+        "-ac", "1",
+        "-y", wav_path
     ]
 
-    subprocess.run(
-        command,
-        check=True
-    )
-
+    subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return wav_path
 
 
-# =========================================================
-# 3. CHUNK AUDIO
-# =========================================================
-
-def chunk_audio(
-    wav_path: str,
-    chunk_minutes: int = 10
-) -> list:
-
+def chunk_audio(wav_path: str, chunk_minutes: int = 10) -> list:
+    """
+    Splits a WAV file into fixed-duration chunks using FFmpeg stream copy.
+    """
     os.makedirs(CHUNK_DIR, exist_ok=True)
 
-    # Remove old chunks
-    old_chunks = glob.glob(
-        os.path.join(CHUNK_DIR, "chunk_*.wav")
-    )
-
-    for old_chunk in old_chunks:
+    # Clean up previous chunks
+    for old_chunk in glob.glob(os.path.join(CHUNK_DIR, "chunk_*.wav")):
         try:
             os.remove(old_chunk)
         except OSError:
             pass
 
-    output_pattern = os.path.join(
-        CHUNK_DIR,
-        "chunk_%03d.wav"
-    )
+    output_pattern = os.path.join(CHUNK_DIR, "chunk_%03d.wav")
 
     command = [
         "ffmpeg",
-
-        "-i",
-        wav_path,
-
-        "-f",
-        "segment",
-
-        "-segment_time",
-        str(chunk_minutes * 60),
-
-        "-ar",
-        "16000",
-
-        "-ac",
-        "1",
-
-        "-y",
-
-        output_pattern
+        "-i", wav_path,
+        "-f", "segment",
+        "-segment_time", str(chunk_minutes * 60),
+        "-c", "copy",
+        "-y", output_pattern
     ]
 
-    subprocess.run(
-        command,
-        check=True
-    )
+    subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    chunks = sorted(
-        glob.glob(
-            os.path.join(
-                CHUNK_DIR,
-                "chunk_*.wav"
-            )
-        )
-    )
-
-    print(f"Created {len(chunks)} audio chunks.")
-
+    chunks = sorted(glob.glob(os.path.join(CHUNK_DIR, "chunk_*.wav")))
+    print(f"Created {len(chunks)} audio chunk(s).")
     return chunks
 
 
-# =========================================================
-# 4. PROCESS INPUT
-# =========================================================
-
-def process_input(source: str) -> list:
-
-    # =====================================================
-    # YOUTUBE URL
-    # =====================================================
-
-    if source.startswith(
-        ("http://", "https://")
-    ):
-
-        print("Detected YouTube URL.")
-        print("Downloading audio...")
-
+def process_input(source: str, chunk_minutes: int = 10) -> list:
+    """
+    Main entry point: Handles URLs or local audio/video files.
+    """
+    if source.startswith(("http://", "https://")):
+        print("Detected YouTube / Web URL.")
         wav_path = download_youtube_audio(source)
-
-    # =====================================================
-    # LOCAL FILE
-    # =====================================================
-
     else:
-
         print("Detected local file.")
-
         if not os.path.exists(source):
+            raise FileNotFoundError(f"File not found: {source}")
+        
+        wav_path = convert_to_wav(source)
 
-            raise FileNotFoundError(
-                f"File not found: {source}"
-            )
-
-        # Already WAV
-        if source.lower().endswith(".wav"):
-
-            print("File is already WAV.")
-
-            wav_path = source
-
-        # Other format
-        else:
-
-            print("Converting local file to WAV...")
-
-            wav_path = convert_to_wav(source)
-
-    # =====================================================
-    # CHUNK WAV
-    # =====================================================
-
-    print("WAV Path:", wav_path)
-
-    chunks = chunk_audio(
-        wav_path,
-        chunk_minutes=10
-    )
-
+    chunks = chunk_audio(wav_path, chunk_minutes=chunk_minutes)
     return chunks
