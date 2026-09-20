@@ -12,22 +12,22 @@ os.makedirs(CHUNK_DIR, exist_ok=True)
 
 def download_youtube_audio(url: str) -> str:
     """
-    Downloads audio from YouTube and directly converts it to 16kHz mono WAV.
+    Downloads audio from YouTube and converts it to 16kHz mono WAV.
     """
     output_template = os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s")
 
     ydl_opts = {
-        "format": "bestaudio/best",
+        "format": "m4a/bestaudio/best",
         "outtmpl": output_template,
         "noplaylist": True,
-        "retries": 3,
+        "retries": 10,
+        "fragment_retries": 10,
         "socket_timeout": 30,
-        "http_headers": {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/131.0.0.0 Safari/537.36"
-            ),
+        # Force player clients that work reliably in cloud environments
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "ios", "mweb"],
+            }
         },
         "postprocessors": [
             {
@@ -49,7 +49,6 @@ def download_youtube_audio(url: str) -> str:
 
     print("WAV created:", wav_file)
     return wav_file
-
 
 def convert_to_wav(input_file: str) -> str:
     """

@@ -6,7 +6,9 @@ watchdog>=4.0.0
 # ---- Media Processing & Audio ----
 yt-dlp>=2025.09.05
 faster-whisper>=1.1.0
-
+streamlit
+yt-dlp
+yt-dlp-ejs
 # Torch CPU build
 torch>=2.8.0
 torchvision>=0.23.0
