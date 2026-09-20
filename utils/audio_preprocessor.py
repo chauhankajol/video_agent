@@ -1,51 +1,9 @@
 import os
 import subprocess
-import shutil
+
 from pathlib import Path
 
 import yt_dlp
-
-
-# =========================================================
-# DENO SETUP
-# =========================================================
-
-def ensure_deno():
-
-    deno_path = shutil.which("deno")
-
-    if deno_path:
-        print(f"Deno found: {deno_path}")
-        return deno_path
-
-    deno_dir = Path.home() / ".deno" / "bin"
-    deno_path = deno_dir / "deno"
-
-    if not deno_path.exists():
-
-        print("Deno not found. Installing Deno...")
-
-        subprocess.run(
-            "curl -fsSL https://deno.land/install.sh | sh",
-            shell=True,
-            check=True
-        )
-
-    os.environ["PATH"] = (
-        f"{deno_dir}{os.pathsep}"
-        f"{os.environ.get('PATH', '')}"
-    )
-
-    if not deno_path.exists():
-        raise RuntimeError("Deno installation failed.")
-
-    print(f"Deno ready: {deno_path}")
-
-    return str(deno_path)
-
-
-ensure_deno()
-
 
 # =========================================================
 # CONFIGURATION
@@ -114,33 +72,28 @@ def download_youtube_audio(url: str) -> str:
 
     ydl_opts = {
 
-        "format": "bestaudio/best",
+    "format": "bestaudio/best",
 
-        "outtmpl": output_template,
+    "outtmpl": output_template,
 
-        "noplaylist": True,
+    "noplaylist": True,
 
-        # Network
-        "retries": 10,
-        "fragment_retries": 10,
-        "file_access_retries": 3,
-        "socket_timeout": 30,
+    "retries": 10,
+    "fragment_retries": 10,
+    "file_access_retries": 3,
+    "socket_timeout": 30,
 
-        "force_ipv4": True,
+    "force_ipv4": True,
 
-        # Deno
-        "js_runtimes": {
-            "deno": {},
-        },
+    "js_runtimes": {
+        "deno": {},
+    },
 
-        # Windows
-        "windowsfilenames": True,
+    "windowsfilenames": True,
 
-        # Logging
-        "quiet": False,
-        "no_warnings": False,
-    }
-
+    "quiet": False,
+    "no_warnings": False,
+   }
     # =====================================================
     # OPTIONAL COOKIES
     # =====================================================
