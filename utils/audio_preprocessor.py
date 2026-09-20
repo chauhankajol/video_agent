@@ -1,7 +1,4 @@
-
 import os
-import glob
-import subprocess
 import yt_dlp
 
 DOWNLOAD_DIR = "downloads"
@@ -27,14 +24,13 @@ def download_youtube_audio(url: str) -> str:
         "fragment_retries": 10,
         "socket_timeout": 30,
         "force_ipv4": True,
-        # Updated extractor options for Cloud/Datacenter deployments
+        # Force web/mweb clients that execute JS challenges cleanly when Node.js is present
         "extractor_args": {
             "youtube": {
-                "player_client": ["mweb", "web"],
-                "player_skip": ["configs", "webpage"],
+                "player_client": ["web", "mweb"],
             }
         },
-        # Pass cookies if available (Place cookies.txt in your root folder)
+        # Pass cookies file if present in repository root
         "cookiefile": "cookies.txt" if os.path.exists("cookies.txt") else None,
         "postprocessors": [
             {
