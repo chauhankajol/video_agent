@@ -1,6 +1,4 @@
-
 import os
-import glob
 import subprocess
 from pathlib import Path
 
@@ -56,15 +54,20 @@ def download_youtube_audio(url: str) -> str:
     """
     Download the best available audio from YouTube.
 
-    Deno is used by yt-dlp for YouTube JavaScript challenge
-    solving.
+    Pipeline:
 
-    FFmpeg conversion is performed separately after download.
+        YouTube URL
+            ↓
+        yt-dlp
+            ↓
+        downloaded source
+            ↓
+        FFmpeg
+            ↓
+        16 kHz mono WAV
     """
 
     check_ffmpeg()
-
-    print("Starting YouTube audio download...")
 
     # -----------------------------------------------------
     # Clean URL
@@ -73,7 +76,11 @@ def download_youtube_audio(url: str) -> str:
     url = url.strip()
 
     if not url:
-        raise ValueError("YouTube URL cannot be empty.")
+        raise ValueError(
+            "YouTube URL cannot be empty."
+        )
+
+    print("Starting YouTube audio download...")
 
     # -----------------------------------------------------
     # Output template
@@ -97,6 +104,7 @@ def download_youtube_audio(url: str) -> str:
         # -------------------------------------------------
         # FORMAT
         # -------------------------------------------------
+
         "format": "bestaudio/best",
 
         "outtmpl": output_template,
@@ -112,21 +120,32 @@ def download_youtube_audio(url: str) -> str:
         "file_access_retries": 3,
         "socket_timeout": 30,
 
-        # IPv4 can sometimes be more reliable
+        # IPv4
         "force_ipv4": True,
 
         # -------------------------------------------------
         # DENO / EJS
         #
-        # Deno is already added to Windows PATH.
-        # Therefore "deno" is enough here.
+        # Deno is already in Windows PATH.
+        #
+        # IMPORTANT:
+        # For the Python API, yt-dlp expects:
+        #
+        # "deno": {}
+        #
+        # NOT:
+        #
+        # "deno": "deno"
         # -------------------------------------------------
 
         "js_runtimes": {
-            "deno": "deno",
+            "deno": {},
         },
 
-        # Download the EJS challenge solver from GitHub
+        # -------------------------------------------------
+        # EJS CHALLENGE SOLVER
+        # -------------------------------------------------
+
         "remote_components": {
             "ejs": ["github"],
         },
@@ -177,12 +196,21 @@ def download_youtube_audio(url: str) -> str:
                 download=True
             )
 
+            # ---------------------------------------------
+            # Get video ID
+            # ---------------------------------------------
+
             video_id = info.get("id")
 
             if not video_id:
+
                 raise RuntimeError(
                     "Could not determine YouTube video ID."
                 )
+
+            # ---------------------------------------------
+            # Get actual downloaded filename
+            # ---------------------------------------------
 
             downloaded_file = Path(
                 ydl.prepare_filename(info)
@@ -191,7 +219,7 @@ def download_youtube_audio(url: str) -> str:
     except Exception as e:
 
         raise RuntimeError(
-            f"YouTube download failed:\n{e}"
+            f"YouTube download failed: {e}"
         ) from e
 
     # -----------------------------------------------------
@@ -209,6 +237,7 @@ def download_youtube_audio(url: str) -> str:
             DOWNLOAD_DIR.glob(f"{video_id}.*")
         )
 
+        # Ignore temporary files
         possible_files = [
             p
             for p in possible_files
@@ -261,6 +290,7 @@ def download_youtube_audio(url: str) -> str:
     ):
 
         try:
+
             downloaded_file.unlink()
 
             print(
@@ -310,7 +340,7 @@ def convert_to_wav(
         )
 
     # -----------------------------------------------------
-    # Default output
+    # Default output path
     # -----------------------------------------------------
 
     if output_file is None:
@@ -436,7 +466,7 @@ def chunk_audio(
     wav_path = Path(wav_path)
 
     # -----------------------------------------------------
-    # Validate input
+    # Validate WAV
     # -----------------------------------------------------
 
     if not wav_path.exists():
@@ -452,7 +482,7 @@ def chunk_audio(
         )
 
     # -----------------------------------------------------
-    # Remove old chunks
+    # Remove previous chunks
     # -----------------------------------------------------
 
     clean_chunks()
@@ -466,7 +496,7 @@ def chunk_audio(
     )
 
     # -----------------------------------------------------
-    # FFmpeg segmentation
+    # FFmpeg command
     # -----------------------------------------------------
 
     command = [
@@ -482,7 +512,7 @@ def chunk_audio(
         "-f",
         "segment",
 
-        # Chunk duration
+        # 10 minutes by default
         "-segment_time",
         str(chunk_minutes * 60),
 
@@ -490,7 +520,7 @@ def chunk_audio(
         "-reset_timestamps",
         "1",
 
-        # PCM 16-bit WAV
+        # PCM 16-bit
         "-c:a",
         "pcm_s16le",
 
@@ -524,7 +554,7 @@ def chunk_audio(
         )
 
     # -----------------------------------------------------
-    # Find generated chunks
+    # Find chunks
     # -----------------------------------------------------
 
     chunks = sorted(
@@ -628,46 +658,67 @@ def process_input(
     return chunks
 
 
-# First save the file.
+# ### One important thing
 
-# Then from:
+# Your previous pasted code had this:
 
-# ```text
-# C:\Users\India\Desktop\video Agent
+# ```python
+# ydl_opts = {
+#     ...
+# }
 # ```
 
-# with:
+# at the **top level**, while the following code was still indented as though it were inside `download_youtube_audio()`.
+
+# That causes multiple problems, including:
+
+# ```text
+# output_template is not defined
+# url is not defined
+# ```
+
+# The corrected version above puts the entire YouTube workflow back inside:
+
+# ```python
+# def download_youtube_audio(url: str) -> str:
+# ```
+
+# ### Now test it
+
+# Make sure you are here:
+
+# ```powershell
+# cd "C:\Users\India\Desktop\video Agent"
+# ```
+
+# and your environment is active:
 
 # ```text
 # (video Agent)
 # ```
 
-# active, run:
+# Then run:
 
 # ```powershell
 # python test.py
 # ```
 
-# Your expected pipeline is:
+# For your YouTube URL, the flow should now be:
 
 # ```text
-# YouTube URL
-#      ↓
-# yt-dlp
-#      ↓
+# Detected YouTube / Web URL.
+#         ↓
+# Starting YouTube audio download...
+#         ↓
 # Deno + EJS
-#      ↓
-# Downloaded audio
-#      ↓
-# FFmpeg
-#      ↓
-# 16 kHz Mono WAV
-#      ↓
-# chunk_000.wav
-# chunk_001.wav
-# ...
-#      ↓
-# Faster-Whisper
+#         ↓
+# Downloaded source
+#         ↓
+# FFmpeg conversion
+#         ↓
+# Final WAV created
+#         ↓
+# Created N audio chunk(s)
 # ```
 
-# **Don't change the Whisper code yet.** First confirm that `test.py` gets through YouTube download + WAV creation + chunking. If it fails, paste the complete error output and we'll fix that specific stage.
+# **Don't modify your Whisper code yet.** First get this stage working completely.
